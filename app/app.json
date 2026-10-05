@@ -1,0 +1,17 @@
+{
+  "expo": {
+    "name": "Ping Pong",
+    "slug": "pingpong",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "dark",
+    "backgroundColor": "#000000",
+    "splash": { "image": "./assets/splash.png", "resizeMode": "contain", "backgroundColor": "#000000" },
+    "android": {
+      "package": "com.subrahmanyam.pingpong",
+      "versionCode": 1,
+      "adaptiveIcon": { "foregroundImage": "./assets/adaptive-icon.png", "backgroundColor": "#000000" }
+    }
+  }
+}
