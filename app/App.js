@@ -1,6 +1,5 @@
-import React from 'react';
-import { View } from 'react-native';
-import { StatusBar } from 'expo-status-bar';
+import React, { useState } from 'react';
+import { View, StatusBar } from 'react-native';
 import { WebView } from 'react-native-webview';
 
 // NOTE: HTML is embedded as a string (no file:// loading) and given a secure
@@ -186,6 +185,7 @@ const HTML_STRING = `<!DOCTYPE html>
       }
       text('First to ' + WIN + ' wins', W / 2, 560, 14);
       text('Drag to move your paddle', W / 2, 584, 14);
+      text('Developed by Subrahmanyam', W / 2, 620, 13);
       ctx.restore();
       return;
     }
@@ -225,10 +225,13 @@ const HTML_STRING = `<!DOCTYPE html>
 </html>`;
 
 export default function App() {
+  const [key, setKey] = useState(0);
   return (
     <View style={{ flex: 1, backgroundColor: '#000' }}>
-      <StatusBar hidden />
+      <StatusBar hidden translucent backgroundColor="#000000" />
       <WebView
+        key={key}
+        onRenderProcessGone={() => setKey((k) => k + 1)}
         style={{ flex: 1, backgroundColor: '#000' }}
         containerStyle={{ backgroundColor: '#000' }}
         originWhitelist={['*']}
