@@ -322,7 +322,6 @@ const HTML_STRING = `<!DOCTYPE html>
       for (var x = 8; x < W; x += 28) ctx.fillRect(x, H / 2 - 1, 14, 2);
       text(String(aScore), W - 30, H / 2 - 40, 40);
       text(String(pScore), W - 30, H / 2 + 40, 40);
-      text('FIRST TO ' + cfg.win, W - 42, H / 2 - 12, 11);
       ctx.fillRect(ax - AW / 2, AY - PH / 2, AW, PH);
       ctx.fillRect(px - pw / 2, PY - PH / 2, pw, PH);
       ctx.beginPath(); ctx.arc(ball.x, ball.y, R, 0, Math.PI * 2); ctx.fill();
