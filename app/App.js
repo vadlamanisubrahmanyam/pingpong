@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, StatusBar, BackHandler } from 'react-native';
+import { View, StatusBar, BackHandler, AppState } from 'react-native';
 import { WebView } from 'react-native-webview';
-import { activateKeepAwakeAsync } from 'expo-keep-awake';
+import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
 
 // NOTE: HTML is embedded as a string (no file:// loading) and given a secure
 // https://localhost origin. Do not use backticks, dollar-brace or backslashes inside.
@@ -61,6 +61,20 @@ const HTML_STRING = `<!DOCTYPE html>
   var audio = null, drag = null;
   var ctrl = 0, rev = 1;          // ctrl: 0 touch, 1 tilt; rev: 1 normal, -1 reversed
   var tilt = 0, motionSeen = false, tiltWatch = 1.5, notice = '', noticeT = 0;
+  var aw = { native: false, web: false }, wl = null;
+  window.__awake = function (k, v) { aw[k] = !!v; };
+  function lockScreen() {
+    try {
+      if (wl || !navigator.wakeLock || document.visibilityState === 'hidden') return;
+      navigator.wakeLock.request('screen').then(function (sen) {
+        wl = sen; aw.web = true;
+        sen.addEventListener('release', function () { wl = null; aw.web = false; });
+      }).catch(function () { aw.web = false; });
+    } catch (e) { aw.web = false; }
+  }
+  lockScreen();
+  setInterval(lockScreen, 10000);
+  document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'visible') lockScreen(); });
   try {
     ctrl = parseInt(localStorage.getItem('pp_ctrl') || '0', 10) || 0;
     rev = localStorage.getItem('pp_rev') === '-1' ? -1 : 1;
@@ -147,8 +161,8 @@ const HTML_STRING = `<!DOCTYPE html>
   }
   var SL = [];
   (function () {
-    for (var i = 0; i < 3; i++) SL.push({ key: 'spd', i: i, y: 215 + i * 40 });
-    for (var k = 0; k < 3; k++) SL.push({ key: 'size', i: k, y: 385 + k * 40 });
+    for (var i = 0; i < 3; i++) SL.push({ key: 'spd', i: i, y: 172 + i * 36 });
+    for (var k = 0; k < 3; k++) SL.push({ key: 'size', i: k, y: 312 + k * 36 });
   })();
   function setSlider(s, clientX) {
     var x = (clientX - ox) / scale;
@@ -161,6 +175,7 @@ const HTML_STRING = `<!DOCTYPE html>
   function onDown(e) {
     if (e.preventDefault) e.preventDefault();
     beep(0, 0.001);
+    lockScreen();
     var x = (e.clientX - ox) / scale, y = (e.clientY - oy) / scale;
     if (state === 'menu') {
       if (inBtn(x, y, 80, 250, 200, 44)) state = 'levels';
@@ -168,21 +183,22 @@ const HTML_STRING = `<!DOCTYPE html>
       else if (inBtn(x, y, 80, 380, 200, 44)) post('exit');
     } else if (state === 'levels') {
       for (var i = 0; i < 3; i++) { if (inBtn(x, y, 80, 150 + i * 60, 200, 40)) { startMatch(i); return; } }
-      if (inBtn(x, y, 60, 360, 240, 40)) {
+      if (inBtn(x, y, 80, 540, 200, 40)) state = 'menu';
+    } else if (state === 'setup') {
+      if (inBtn(x, y, 90, 84, 40, 36)) { cfg.win = clamp(cfg.win - 1, LIM.win[0], LIM.win[1]); saveCfg(); }
+      else if (inBtn(x, y, 230, 84, 40, 36)) { cfg.win = clamp(cfg.win + 1, LIM.win[0], LIM.win[1]); saveCfg(); }
+      else if (inBtn(x, y, 20, 432, 200, 34)) {
         ctrl = ctrl ? 0 : 1;
         if (ctrl) { motionSeen = false; tiltWatch = 1.5; }
         saveCtrl();
-      } else if (ctrl === 1 && inBtn(x, y, 80, 410, 200, 30)) { rev = -rev; saveCtrl(); }
-      else if (inBtn(x, y, 80, 540, 200, 40)) state = 'menu';
-    } else if (state === 'setup') {
-      if (inBtn(x, y, 90, 112, 40, 40)) { cfg.win = clamp(cfg.win - 1, LIM.win[0], LIM.win[1]); saveCfg(); }
-      else if (inBtn(x, y, 230, 112, 40, 40)) { cfg.win = clamp(cfg.win + 1, LIM.win[0], LIM.win[1]); saveCfg(); }
-      else if (inBtn(x, y, 60, 500, 240, 36)) { cfg = clone(DEF); saveCfg(); }
-      else if (inBtn(x, y, 80, 550, 200, 40)) { saveCfg(); state = 'menu'; }
+      }
+      else if (ctrl === 1 && inBtn(x, y, 230, 432, 110, 34)) { rev = -rev; saveCtrl(); }
+      else if (inBtn(x, y, 60, 498, 240, 32)) { cfg = clone(DEF); ctrl = 0; rev = 1; saveCfg(); saveCtrl(); }
+      else if (inBtn(x, y, 80, 544, 200, 40)) { saveCfg(); state = 'menu'; }
       else {
-        for (var s = 0; s < SL.length; s++) {
-          if (Math.abs(y - SL[s].y) <= 18 && x >= 60 && x <= 262) {
-            drag = SL[s]; setSlider(drag, e.clientX);
+        for (var s2 = 0; s2 < SL.length; s2++) {
+          if (Math.abs(y - SL[s2].y) <= 16 && x >= 60 && x <= 262) {
+            drag = SL[s2]; setSlider(drag, e.clientX);
             try { canvas.setPointerCapture(e.pointerId); } catch (err) {}
             break;
           }
@@ -269,13 +285,13 @@ const HTML_STRING = `<!DOCTYPE html>
     text(label, bx + bw / 2, by + bh / 2 + 1, size);
   }
   function drawSetup() {
-    text('SETUP', W / 2, 45, 28);
-    text('1. SCORE TO WIN', 20, 92, 15, 'left');
-    btn('-', 90, 112, 40, 40, 24);
-    text(String(cfg.win), W / 2, 133, 28);
-    btn('+', 230, 112, 40, 40, 24);
-    text('2. BALL SPEED', 20, 180, 15, 'left');
-    text('3. PADDLE SIZE (YOURS)', 20, 350, 15, 'left');
+    text('SETUP', W / 2, 34, 26);
+    text('1. SCORE TO WIN', 20, 70, 14, 'left');
+    btn('-', 90, 84, 40, 36, 22);
+    text(String(cfg.win), W / 2, 103, 26);
+    btn('+', 230, 84, 40, 36, 22);
+    text('2. BALL SPEED', 20, 142, 14, 'left');
+    text('3. PADDLE SIZE (YOURS)', 20, 282, 14, 'left');
     for (var s = 0; s < SL.length; s++) {
       var sl = SL[s], lim = LIM[sl.key], v = cfg[sl.key][sl.i];
       var tx = TX0 + (v - lim[0]) / (lim[1] - lim[0]) * (TX1 - TX0);
@@ -284,8 +300,19 @@ const HTML_STRING = `<!DOCTYPE html>
       ctx.beginPath(); ctx.arc(tx, sl.y, 9, 0, Math.PI * 2); ctx.fill();
       text(String(v), 264, sl.y, 14, 'left');
     }
-    btn('RESET DEFAULTS', 60, 500, 240, 36, 15);
-    btn('BACK', 80, 550, 200, 40, 18);
+    text('4. CONTROL', 20, 420, 14, 'left');
+    btn('CONTROL: ' + (ctrl ? 'TILT' : 'TOUCH'), 20, 432, 200, 34, 15);
+    if (ctrl === 1) {
+      btn('DIR: ' + (rev === 1 ? 'NORMAL' : 'REVERSED'), 230, 432, 110, 34, 11);
+      text('TEST', 20, 484, 11, 'left');
+      ctx.fillRect(60, 483, 240, 2);
+      var dx = motionSeen ? clamp(tilt * rev / 9.81 / 0.4, -1, 1) * 120 : 0;
+      ctx.beginPath(); ctx.arc(180 + dx, 484, 6, 0, Math.PI * 2); ctx.fill();
+    }
+    btn('RESET DEFAULTS', 60, 498, 240, 32, 14);
+    btn('BACK', 80, 544, 200, 40, 18);
+    if (noticeT > 0) text(notice, W / 2, 596, 12);
+    text('Screen stay-awake: ' + (aw.native && aw.web ? 'NATIVE+WEB' : aw.native ? 'NATIVE' : aw.web ? 'WEB' : 'OFF'), W / 2, 618, 11);
   }
   function draw() {
     var w = window.innerWidth, h = window.innerHeight;
@@ -311,9 +338,9 @@ const HTML_STRING = `<!DOCTYPE html>
       text('SELECT LEVEL', W / 2, 90, 28);
       for (var i = 0; i < 3; i++) btn(NAMES[i], 80, 150 + i * 60, 200, 40, 20);
       text('First to ' + cfg.win + ' wins', W / 2, 338, 13);
-      btn('CONTROL: ' + (ctrl ? 'TILT' : 'TOUCH'), 60, 360, 240, 40, 17);
-      if (ctrl === 1) btn('TILT DIR: ' + (rev === 1 ? 'NORMAL' : 'REVERSED'), 80, 410, 200, 30, 13);
-      text(ctrl ? 'Tilt left / right to move' : 'Drag to move your paddle', W / 2, 470, 14);
+      text('Control: ' + (ctrl ? 'TILT' : 'TOUCH'), W / 2, 385, 15);
+      text(ctrl ? 'Tilt left / right to move' : 'Drag to move your paddle', W / 2, 410, 13);
+      text('(change in Setup)', W / 2, 432, 12);
       btn('BACK', 80, 540, 200, 40, 18);
       if (noticeT > 0) text(notice, W / 2, 600, 12);
     } else if (state === 'setup') {
@@ -356,8 +383,24 @@ export default function App() {
   const [key, setKey] = useState(0);
   const webRef = useRef(null);
 
+  // Keep the screen on (tilt play has no touches). Re-applied whenever the app returns to the
+  // foreground, and the result is reported to the game (shown on the Setup screen).
+  const markAwake = (ok) => {
+    if (webRef.current) {
+      webRef.current.injectJavaScript('window.__awake && window.__awake("native", ' + (ok ? 'true' : 'false') + '); true;');
+    }
+  };
+  const keepAwake = (force) => {
+    const go = () => activateKeepAwakeAsync('game').then(() => markAwake(true)).catch(() => markAwake(false));
+    try {
+      if (force) deactivateKeepAwake('game').catch(() => {}).then(go);
+      else go();
+    } catch (e) { markAwake(false); }
+  };
   useEffect(() => {
-    try { activateKeepAwakeAsync('game').catch(() => {}); } catch (e) {}
+    keepAwake(false);
+    const sub = AppState.addEventListener('change', (st) => { if (st === 'active') keepAwake(true); });
+    return () => sub.remove();
   }, []);
 
   // Hardware/gesture back: let the game decide (menu -> exit, other screens -> menu)
@@ -376,6 +419,7 @@ export default function App() {
         key={key}
         ref={webRef}
         onRenderProcessGone={() => setKey((k) => k + 1)}
+        onLoadEnd={() => keepAwake(false)}
         onMessage={(e) => { if (e.nativeEvent.data === 'exit') BackHandler.exitApp(); }}
         style={{ flex: 1, backgroundColor: '#000' }}
         containerStyle={{ backgroundColor: '#000' }}
